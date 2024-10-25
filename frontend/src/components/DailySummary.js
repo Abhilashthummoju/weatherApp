@@ -92,7 +92,14 @@ const DailySummary = () => {
       setData(response.data);
       console.log("DATA", response.data);
       setLastFetchTime(new Date()); // Update last fetch time
-
+  
+      // Check if any city's max temperature exceeds 35°C
+      response.data.forEach((cityData) => {
+        if (cityData.max_temp > 25) {
+          console.log(`Alert: The maximum temperature in ${cityData.city} is above 35°C (${cityData.max_temp.toFixed(2)}°C).`);
+          window.alert(`The maximum temperature in ${cityData.city} is above 35°C.`);
+        }
+      });
     } catch (err) {
       console.error("Error fetching data:", err);
       setError("Failed to fetch data");
@@ -100,6 +107,7 @@ const DailySummary = () => {
       setLoading(false);
     }
   };
+  
 
   
   useEffect(() => {
