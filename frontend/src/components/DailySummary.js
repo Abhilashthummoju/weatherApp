@@ -17,17 +17,13 @@ const Container = styled.div`
 `;
 
 const ChartContainer = styled.div`
-  // margin-bottom: 25px;
   border-radius: 10px;
   padding: 20px;
   background-color: #ffffff;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   width: 95%;
-  // max-width: 500px;  /* Set a maximum width */
-  // height: 600px; /* Fixed height */
   display: flex;
   justify-content: center;
-  // align-items: center;
   flex-direction: column;
   margin: 10px;
   marginLeft: -20px;
@@ -68,16 +64,44 @@ const LastFetchTime = styled.div`
 const SubHeading = styled.h3`
   color: #34495e;
   font-size: 20px;
-  // margin-bottom: 15px;
 `;
 
 const WeatherDetails = styled.div`
   background-color: #f9f9f9;
-  // padding: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  // margin-bottom: 20px;
 `;
+
+const ThresholdInputContainer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+
+  label {
+    margin-right: 10px;
+    font-weight: bold;
+    color: #34495e;
+    font-size: 18px;
+  }
+
+  input {
+    width: 80px;
+    padding: 8px;
+    border-radius: 6px;
+    border: 2px solid #28a745;
+    font-size: 16px;
+    text-align: center;
+    color: #34495e;
+    outline: none;
+    transition: border-color 0.3s ease;
+
+    &:focus {
+      border-color: #218838;
+    }
+  }
+`;
+
 
 const DailySummary = () => {
   const [data, setData] = useState([]);
@@ -85,6 +109,12 @@ const DailySummary = () => {
   const [error, setError] = useState(null);
   const [lastFetchTime, setLastFetchTime] = useState(new Date());
 
+  // User-configurable thresholds
+  const [tempThreshold, setTempThreshold] = useState(35); // Default: 35°C
+  const [consecutiveUpdates, setConsecutiveUpdates] = useState(2); // Default: 2 consecutive updates
+
+  // Track temperature alerts for cities
+  const [temperatureAlerts, setTemperatureAlerts] = useState({});
 
   const fetchData = async () => {
     try {
@@ -92,14 +122,41 @@ const DailySummary = () => {
       setData(response.data);
       console.log("DATA", response.data);
       setLastFetchTime(new Date()); // Update last fetch time
-  
-      // Check if any city's max temperature exceeds 35°C
+
+      // Check for consecutive temperature conditions
+      const newAlerts = { ...temperatureAlerts };
       response.data.forEach((cityData) => {
-        if (cityData.max_temp > 25) {
-          console.log(`Alert: The maximum temperature in ${cityData.city} is above 35°C (${cityData.max_temp.toFixed(2)}°C).`);
-          window.alert(`The maximum temperature in ${cityData.city} is above 35°C.`);
+        const city = cityData.city;
+        const currentMaxTemp = cityData.max_temp;
+
+        // Initialize tracking if it doesn't exist
+        if (!newAlerts[city]) {
+          newAlerts[city] = { count: 0, lastTempExceeded: false };
+        }
+
+        // Update count if the temperature exceeds the threshold
+        if (currentMaxTemp > tempThreshold) {
+          if (newAlerts[city].lastTempExceeded) {
+            newAlerts[city].count += 1;
+          } else {
+            newAlerts[city].count = 1;
+          }
+          newAlerts[city].lastTempExceeded = true;
+        } else {
+          newAlerts[city].count = 0; // Reset if temperature is below the threshold
+          newAlerts[city].lastTempExceeded = false;
+        }
+
+        // Trigger alert if the count reaches the consecutive updates threshold
+        if (newAlerts[city].count >= consecutiveUpdates) {
+          console.log(`Alert: The maximum temperature in ${city} exceeded ${tempThreshold}°C for ${consecutiveUpdates} consecutive updates.`);
+          window.alert(`The maximum temperature in ${city} has exceeded ${tempThreshold}°C for ${consecutiveUpdates} consecutive updates.`);
+          // Reset alert count after alerting
+          newAlerts[city].count = 0;
         }
       });
+
+      setTemperatureAlerts(newAlerts);
     } catch (err) {
       console.error("Error fetching data:", err);
       setError("Failed to fetch data");
@@ -107,9 +164,7 @@ const DailySummary = () => {
       setLoading(false);
     }
   };
-  
 
-  
   useEffect(() => {
     fetchData(); // Fetch data immediately on mount
 
@@ -128,8 +183,8 @@ const DailySummary = () => {
     return `${diffInMinutes} minutes ago`;
   };
 
-   // Update "time ago" display every minute
-   useEffect(() => {
+  // Update "time ago" display every minute
+  useEffect(() => {
     const timer = setInterval(() => {
       setLastFetchTime(new Date(lastFetchTime));
     }, 60000); // Update every minute
@@ -186,6 +241,16 @@ const DailySummary = () => {
       <LastFetchTime>Last updated: {formatTimeAgo(lastFetchTime)}</LastFetchTime>
 
       <Heading>Daily Weather Summary</Heading>
+      <ThresholdInputContainer>
+        <label>
+          Temperature Threshold (°C):
+          <input
+            type="number"
+            value={tempThreshold}
+            onChange={(e) => setTempThreshold(Number(e.target.value))}
+          />
+        </label>
+      </ThresholdInputContainer>
       {Object.keys(groupedData).map((city) => {
         const cityData = groupedData[city][0];
         return (
@@ -204,7 +269,7 @@ const DailySummary = () => {
               data={createChartData(groupedData[city])}
               options={{
                 responsive: true,
-                maintainAspectRatio: true,  // Ensures the chart keeps its aspect ratio
+                maintainAspectRatio: true,
                 plugins: {
                   legend: {
                     display: true,
@@ -255,8 +320,8 @@ const DailySummary = () => {
                   },
                 },
               }}
-              width={400}  // Fixed width
-              height={200}  // Fixed height
+              width={400}
+              height={200}
             />
           </ChartContainer>
         );
